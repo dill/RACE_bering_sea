@@ -25,17 +25,17 @@ grid <- fish %>%
   # make VESSEL a factor
   mutate(VESSEL = as.factor(VESSEL)) %>%
   select(LATITUDE, LONGITUDE, YEAR, BOT_DEPTH,
-         BOT_TEMP, SURF_TEMP, VESSEL)
+         BOT_TEMP, SURF_TEMP, VESSEL, STATION)
 grid <- grid[!is.na(grid$YEAR),]
 
 # time to get our mudge on...
 # get the observations where *something* got caught
 fish <- fish %>%
-  filter(COMMON=="Arctic cod") %>%
+  filter(COMMON=="walleye pollock") %>%
   # make VESSEL a factor
   mutate(VESSEL = as.factor(VESSEL)) %>%
   select(LATITUDE, LONGITUDE, YEAR, NUMCPUE, BOT_DEPTH,
-         BOT_TEMP, SURF_TEMP, VESSEL)
+         BOT_TEMP, SURF_TEMP, VESSEL, STATION)
 
 # projection
 xy <- sf_project(from="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs",
@@ -92,11 +92,11 @@ rr <- st_rasterize(xy_st, deltax=37040, deltay=37040,
 #  geom_tile(aes(x=x, y=y, fill=BOT_DEPTH, width=37040, height=37040))
 #print(p)
 
-fish <- as.data.frame(fish)
-
-fish$BOT_TEMP_ID <- as.factor(order(fish$BOT_TEMP))
-fish$SURF_TEMP_ID <- as.factor(order(fish$SURF_TEMP))
-fish$BOT_DEPTH_ID <- as.factor(order(fish$BOT_DEPTH))
+#fish <- as.data.frame(fish)
+#
+#fish$BOT_TEMP_ID <- as.factor(order(fish$BOT_TEMP))
+#fish$SURF_TEMP_ID <- as.factor(order(fish$SURF_TEMP))
+#fish$BOT_DEPTH_ID <- as.factor(order(fish$BOT_DEPTH))
 
 #save(fish, pred, file="fish.RData")
 save(fish, grid, file="fish.RData")
