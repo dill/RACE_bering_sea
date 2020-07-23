@@ -5,6 +5,7 @@ library(dplyr)
 library(lubridate)
 library(sf)
 library(stars)
+library(deldir)
 
 # get the projection
 proj <- readLines("3338.prj")
@@ -44,21 +45,42 @@ station_ind <- duplicated(grid$STATION)
 grid <- grid[!station_ind, ]
 grid <- grid[,c("LATITUDE", "LONGITUDE", "BOT_DEPTH", "STATION", "x", "y")]
 
-# now create a spatial object based on those unique locations
-d <- st_as_sf(grid, crs=proj, coords = c("x", "y"))
-d <- st_union(d)
 
 # make a hull around them all
+d <- st_as_sf(grid, crs=proj, coords = c("x", "y"))
+d <- st_union(d)
 hull <- st_buffer(d, dist=30000)
 # now do a Voronoi tiling to get the trawl areas
 # roughly reconstructing the sampling grid at:
 # https://archive.fisheries.noaa.gov/afsc/RACE/groundfish/survey_data/ebswater.htm
-v <- st_voronoi(d)
-# use the hull to truncate the outer edges of the tiling
-mrf_sp <- st_intersection(st_cast(v), hull)
+# st_voronoi is bust since it doesn't preserve ordering, so use deldir
+# https://github.com/r-spatial/sf/issues/1371
+v <- deldir(grid$x, grid$y)
 
-# for mgcv format
-mrf_mgcv <- lapply(mrf_sp, as.matrix)
+mrf_mgcv <- list()
+
+pairs <- cbind(c(v$dirsgs$ind1, v$dirsgs$ind2),
+               c(v$dirsgs$ind2, v$dirsgs$ind1))
+
+for (p in 1:length(unique(grid$STATION))){
+  set <- pairs[which(pairs[,1]==p),]
+  buds <- list(array(grid$STATION[set[,2]]))
+  names(buds) <- p
+  mrf_mgcv <- c(mrf_mgcv, buds)
+}
+
+names(mrf_mgcv) <- unique(grid$STATION)
+
+ll <- lapply(tile.list(v), function(x) st_sf(st_sfc(st_polygon(list(cbind(x$x[c(1:length(x$x), 1)],x$y[c(1:length(x$x), 1)]))), crs=proj)))
+
+
+lll <- do.call(what = sf:::rbind.sf, args = ll)
+mrf_sp <- st_intersection(st_cast(lll), hull)
+mrf_sp <- cbind(mrf_sp, grid)
+mrf_sp$x <- NULL
+mrf_sp$y <- NULL
+mrf_sp$LATITUDE <- NULL
+mrf_sp$LONGITUDE <- NULL
 
 ## yet more mrf foolishness
 #mk_1d_mrf <- function(x){
