@@ -20,13 +20,17 @@ for(ff in fishy_files){
   }
   fish <- bind_rows(fish, ffile)
 }
+
+fish$STATION <- as.factor(fish$STATION)
+
 # get unique locations
 grid <- fish %>%
   distinct(LATITUDE, LONGITUDE, YEAR, .keep_all=TRUE) %>%
   # make VESSEL a factor
   mutate(VESSEL = as.factor(VESSEL)) %>%
   select(LATITUDE, LONGITUDE, YEAR, BOT_DEPTH,
-         BOT_TEMP, SURF_TEMP, VESSEL, STATION)
+         BOT_TEMP, SURF_TEMP, VESSEL, STATION, STRATUM)
+
 
 
 # project
@@ -43,7 +47,7 @@ station_year_combinations <- unique(grid[, c("STATION", "YEAR")])
 # this isn't great but good enough (stations move slightly between years)
 station_ind <- duplicated(grid$STATION)
 grid <- grid[!station_ind, ]
-grid <- grid[,c("LATITUDE", "LONGITUDE", "BOT_DEPTH", "STATION", "x", "y")]
+grid <- grid[,c("LATITUDE", "LONGITUDE", "BOT_DEPTH", "STATION", "STRATUM", "x", "y")]
 
 
 # make a hull around them all
@@ -105,6 +109,10 @@ mrf_sp$LONGITUDE <- NULL
 #bot_depth_mrf <- mk_1d_mrf(fish$BOT_DEPTH)
 #fish$BOT_DEPTH_ID <- as.factor(order(fish$BOT_DEPTH))
 
-save(mrf_mgcv, mrf_sp, station_year_combinations,
+# centroids
+mrf_centroids <- v$summary[, c("x", "y")]
+mrf_centroids$STATION <- grid$STATION
+
+save(mrf_mgcv, mrf_sp, mrf_centroids, station_year_combinations,
      file="fish_mrf.RData")
 

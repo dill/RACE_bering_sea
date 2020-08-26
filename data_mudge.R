@@ -10,7 +10,7 @@ library(stars)
 proj <- readLines("3338.prj")
 
 # load the data and squish it together
-fishy_files <- dir("data", full=TRUE)
+fishy_files <- dir("data", full=TRUE, pattern="csv$")
 fish <- c()
 for(ff in fishy_files){
   ffile <- read_csv(ff,  na = c("", "NA", -9999))
@@ -19,13 +19,16 @@ for(ff in fishy_files){
   }
   fish <- bind_rows(fish, ffile)
 }
+fish$STATION <- as.factor(fish$STATION)
+
+
 # get unique locations
 grid <- fish %>%
-  distinct(LATITUDE, LONGITUDE, YEAR, .keep_all=TRUE) %>%
+  distinct(STATION, YEAR, .keep_all=TRUE) %>%
   # make VESSEL a factor
   mutate(VESSEL = as.factor(VESSEL)) %>%
   select(LATITUDE, LONGITUDE, YEAR, BOT_DEPTH,
-         BOT_TEMP, SURF_TEMP, VESSEL, STATION)
+         BOT_TEMP, SURF_TEMP, VESSEL, STATION, STRATUM)
 grid <- grid[!is.na(grid$YEAR),]
 
 # time to get our mudge on...
@@ -35,7 +38,7 @@ fish <- fish %>%
   # make VESSEL a factor
   mutate(VESSEL = as.factor(VESSEL)) %>%
   select(LATITUDE, LONGITUDE, YEAR, NUMCPUE, BOT_DEPTH,
-         BOT_TEMP, SURF_TEMP, VESSEL, STATION)
+         BOT_TEMP, SURF_TEMP, VESSEL, STATION, STRATUM)
 
 # projection
 xy <- sf_project(from="+proj=longlat +ellps=WGS84 +datum=WGS84 +no_defs",
@@ -48,18 +51,20 @@ grid$x <- xy[, 1]
 grid$y <- xy[, 2]
 
 # get the bits we missed
-ff <- anti_join(grid, fish, by=c("LATITUDE", "LONGITUDE", "YEAR"))
+ff <- anti_join(grid, fish, by=c("STATION", "YEAR"))
 # now take the zeros we just found and join the non-zeros (the fish)
 fish <- bind_rows(fish, ff)
 # make the NA CPUEs be 0s
 fish$NUMCPUE[is.na(fish$NUMCPUE)] <- 0
 
+
 # how does that look?
 library(ggplot2)
 p <- ggplot(fish) +
-  geom_point(aes(x=x, y=y, colour=log(NUMCPUE)), size=0.4) +
+  geom_point(aes(x=x, y=y, colour=NUMCPUE), size=0.4) +
   coord_equal() +
-  scale_colour_viridis_c(begin=0.3, end=1, option="A", na.value="grey80") +
+  scale_colour_viridis_c(begin=0.3, end=1, option="A", na.value="grey80")+#,
+#                         trans="log") +
   theme_minimal() +
   theme(axis.text=element_blank(), axis.title=element_blank(), legend.position="bottom") +
   facet_wrap(~YEAR)
@@ -70,6 +75,7 @@ xy_st <- st_as_sf(grid, coords=c("LONGITUDE", "LATITUDE"),
 xy_st <- st_transform(xy_st, proj)
 rr <- st_rasterize(xy_st, deltax=37040, deltay=37040,
                    options = c("ALL_TOUCHED=TRUE"))
+
 
 # this seems baaaaaaad
 #library(akima)
